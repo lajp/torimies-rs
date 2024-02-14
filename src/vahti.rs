@@ -198,12 +198,12 @@ impl Torimies {
                     }
                     v
                 })
-                .map(|v| (v, dm.clone())),
+                .map(|v| (v, dm.clone()))
+                .map(|(v, dm)| async move { perform_delivery(dm.clone(), v.await).await })
+                .collect::<Vec<_>>(),
         )
-        .then(|(v, dm)| async move { perform_delivery(dm.clone(), v.await) })
-        .for_each_concurrent(*crate::FUTURES_MAX_BUFFER_SIZE, |d| async move {
-            d.await.ok();
-        })
+        .buffer_unordered(*crate::FUTURES_MAX_BUFFER_SIZE)
+        .collect::<Vec<_>>()
         .await;
 
         info!("Update took {}ms", start.elapsed().as_millis());
