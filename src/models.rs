@@ -6,6 +6,7 @@ pub struct DbVahti {
     pub last_updated: i64,
     pub site_id: i32,
     pub delivery_method: i32,
+    pub key: Option<String>,
 }
 
 use crate::schema::Vahdit;
@@ -18,6 +19,7 @@ pub struct NewVahti {
     pub last_updated: i64,
     pub site_id: i32,
     pub delivery_method: i32,
+    pub key: Option<String>,
 }
 
 #[derive(Queryable, Clone, Debug)]

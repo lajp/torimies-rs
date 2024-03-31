@@ -1,6 +1,6 @@
 [package]
 name = "torimies-rs"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Luukas Pörtfors <lajp@iki.fi>"]
 
@@ -60,5 +60,7 @@ dashmap = "5.4.0"
 itertools = "0.10.5"
 r2d2 = "0.8.10"
 url = "2.4.0"
-encoding = "0.2.33"
 hex = "0.4.3"
+hmac = "0.12.1"
+sha2 = "0.10.8"
+base64 = "0.22.0"

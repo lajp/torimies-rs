@@ -19,10 +19,13 @@ impl ItemHistory {
         }
     }
 
-    pub fn add_item(&mut self, id: i64, site_id: i32, timestamp: i64) {
+    pub fn add_item(&mut self, id: i64, site_id: i32, timestamp: i64) -> bool {
         if !self.contains(id, site_id) {
             debug!("Adding id: {},{}, timestamp: {}", id, site_id, timestamp);
             self.items.insert((id, site_id), timestamp);
+            true
+        } else {
+            false
         }
     }
 
@@ -32,7 +35,7 @@ impl ItemHistory {
 
     pub fn purge_old(&mut self) {
         self.items
-            .retain(|(_, _), timestamp| timestamp > &mut (chrono::Local::now().timestamp() - 1000));
+            .retain(|(_, _), timestamp| timestamp > &mut (chrono::Utc::now().timestamp() - 1000));
     }
 
     pub fn extend(&mut self, other: &Self) {

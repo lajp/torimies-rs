@@ -8,8 +8,6 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use serenity::gateway::ShardManager;
-use serenity::model::application::Interaction;
-use serenity::model::gateway::GatewayIntents;
 use serenity::model::prelude::*;
 use serenity::prelude::*;
 

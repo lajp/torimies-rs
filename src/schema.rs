@@ -1,4 +1,3 @@
-#![allow(non_snake_case)]
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
@@ -18,7 +17,11 @@ diesel::table! {
         last_updated -> BigInt,
         site_id -> Integer,
         delivery_method -> Integer,
+        key -> Nullable<Text>,
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(Blacklists, Vahdit,);
+diesel::allow_tables_to_appear_in_same_query!(
+    Blacklists,
+    Vahdit,
+);

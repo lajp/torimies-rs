@@ -10,11 +10,11 @@ use crate::delivery::perform_delivery;
 use crate::error::Error;
 #[cfg(feature = "huutonet")]
 use crate::huutonet::vahti::HuutonetVahti;
-use crate::itemhistory::{ItemHistory, ItemHistoryStorage};
+use crate::itemhistory::ItemHistory;
 use crate::models::DbVahti;
 #[cfg(feature = "tori")]
 use crate::tori::vahti::ToriVahti;
-use crate::Torimies;
+use crate::{tori, Torimies};
 
 static SITES: LazyLock<Vec<(&LazyLock<Regex>, i32)>> = LazyLock::new(|| {
     vec![
@@ -32,11 +32,7 @@ pub trait Vahti
 where
     Self: Sized + Send + Sync,
 {
-    async fn update(
-        &mut self,
-        db: &Database,
-        ihs: ItemHistoryStorage,
-    ) -> Result<Vec<VahtiItem>, Error>;
+    async fn update(&mut self, db: &Database) -> Result<Vec<VahtiItem>, Error>;
     async fn validate_url(&self) -> Result<bool, Error>;
     fn is_valid_url(&self, url: &str) -> bool;
     fn from_db(v: DbVahti) -> Result<Self, Error>;
@@ -80,8 +76,14 @@ pub async fn new_vahti(
         return Err(Error::VahtiExists);
     }
 
+    let key = if site_id == tori::ID {
+        Some(tori::api::api_key(url))
+    } else {
+        None
+    };
+
     match db
-        .add_vahti_entry(url, userid as i64, site_id, delivery_method)
+        .add_vahti_entry(url, userid as i64, site_id, delivery_method, key)
         .await
     {
         Ok(_) => Ok(String::from("Vahti added succesfully")),
@@ -139,31 +141,33 @@ impl Torimies {
         let dm = self.delivery.clone();
 
         let items = stream::iter(vahtis.iter().cloned())
-            .map(|v| (v, ihs.clone(), db.clone()))
-            .map(async move |(v, ihs, db)| match v.site_id {
-                #[cfg(feature = "tori")]
-                crate::tori::ID => {
-                    let Ok(mut tv) = ToriVahti::from_db(v) else {
-                        return vec![];
-                    };
+            .map(|v| (v, db.clone()))
+            .map(|(v, db)| async move {
+                match v.site_id {
+                    #[cfg(feature = "tori")]
+                    crate::tori::ID => {
+                        let Ok(mut tv) = ToriVahti::from_db(v) else {
+                            return vec![];
+                        };
 
-                    tv.update(&db, ihs.clone()).await.unwrap_or_default()
-                }
-                #[cfg(feature = "huutonet")]
-                crate::huutonet::ID => {
-                    if let Ok(mut hv) = HuutonetVahti::from_db(v) {
-                        hv.update(&db, ihs.clone()).await.unwrap_or_default()
-                    } else {
-                        vec![]
+                        tv.update(&db).await.unwrap_or_default()
                     }
+                    #[cfg(feature = "huutonet")]
+                    crate::huutonet::ID => {
+                        if let Ok(mut hv) = HuutonetVahti::from_db(v) {
+                            hv.update(&db).await.unwrap_or_default()
+                        } else {
+                            vec![]
+                        }
+                    }
+                    i => panic!("Unsupported site_id {}", i),
                 }
-                i => panic!("Unsupported site_id {}", i),
             })
             .buffer_unordered(*crate::FUTURES_MAX_BUFFER_SIZE)
             .collect::<Vec<_>>()
             .await;
 
-        info!("Recieving items took {}ms", start.elapsed().as_millis());
+        info!("Receiving items took {}ms", start.elapsed().as_millis());
 
         let groups: Vec<Vec<VahtiItem>> = items
             .iter()
@@ -175,7 +179,22 @@ impl Torimies {
                 )
             })
             .into_iter()
-            .map(|(_, g)| g.cloned().unique_by(|v| v.ad_id).collect())
+            // FIXME: This could be parallellized
+            .map(|(k, items)| {
+                let mut ih = ihs
+                    .get(&k)
+                    .expect("bug: impossible")
+                    .lock()
+                    .unwrap()
+                    .clone();
+
+                let now = chrono::Utc::now().timestamp();
+                items
+                    .into_iter()
+                    .filter(|i| ih.add_item(i.ad_id, i.site_id, now))
+                    .cloned()
+                    .collect()
+            })
             .collect();
 
         // False positive, because we actually want to .await the future elsewhere
@@ -184,7 +203,7 @@ impl Torimies {
             groups
                 .iter()
                 .map(|v| (v, db.clone()))
-                .map(async move |(v, db)| {
+                .map(async move |(v, db): (&Vec<VahtiItem>, Database)| {
                     let mut v = v.clone();
 
                     if let Some(fst) = v.first() {
@@ -198,12 +217,12 @@ impl Torimies {
                     }
                     v
                 })
-                .map(|v| (v, dm.clone())),
+                .map(|v| (v, dm.clone()))
+                .map(|(v, dm)| async move { perform_delivery(dm.clone(), v.await).await })
+                .collect::<Vec<_>>(),
         )
-        .then(|(v, dm)| async move { perform_delivery(dm.clone(), v.await) })
-        .for_each_concurrent(*crate::FUTURES_MAX_BUFFER_SIZE, |d| async move {
-            d.await.ok();
-        })
+        .buffer_unordered(*crate::FUTURES_MAX_BUFFER_SIZE)
+        .collect::<Vec<_>>()
         .await;
 
         info!("Update took {}ms", start.elapsed().as_millis());

@@ -5,7 +5,6 @@ use std::env;
 use diesel::connection::SimpleConnection;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, CustomizeConnection, Pool};
-use diesel::sqlite::SqliteConnection;
 use serenity::prelude::TypeMapKey;
 
 use crate::error::Error;
@@ -71,8 +70,9 @@ impl Database {
         userid: i64,
         site_id: i32,
         delivery_method: i32,
+        key: Option<String>,
     ) -> Result<usize, Error> {
-        let time = chrono::Local::now().timestamp();
+        let time = chrono::Utc::now().timestamp();
         info!("Adding Vahti `{}` for the user {}", arg_url, userid);
         use crate::schema::Vahdit;
         let new_vahti = NewVahti {
@@ -81,6 +81,7 @@ impl Database {
             user_id: userid,
             site_id,
             delivery_method,
+            key,
         };
         Ok(diesel::insert_into(Vahdit::table)
             .values(&new_vahti)
@@ -157,11 +158,8 @@ impl Database {
             vahti.url, vahti.user_id
         );
         use crate::schema::Vahdit::dsl::*;
-        let time = timestamp.unwrap_or_else(|| chrono::Local::now().timestamp());
-        info!(
-            "Newest item {}s ago",
-            chrono::Local::now().timestamp() - time
-        );
+        let time = timestamp.unwrap_or_else(|| chrono::Utc::now().timestamp());
+        info!("Newest item {}s ago", chrono::Utc::now().timestamp() - time);
         Ok(diesel::update(
             Vahdit.filter(
                 url.eq(vahti.url)

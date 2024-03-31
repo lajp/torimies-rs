@@ -144,7 +144,7 @@ impl Delivery for Discord {
 
         stream::iter(chunks.iter().cloned())
             .map(|is| (is, http.clone(), recipient.clone()))
-            .map(async move |(items, http, rec)| {
+            .map(|(items, http, rec)| async move {
                 let mut message = CreateMessage::new();
                 for item in items {
                     message = message.add_embed(item.clone().embed());

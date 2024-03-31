@@ -103,7 +103,7 @@ async fn update_loop(man: &mut Torimies) {
 async fn command_loop(man: &Torimies) {
     let mut balls = man.command.iter_mut().collect::<Vec<_>>();
     let fs = stream::iter(balls.iter_mut())
-        .map(async move |c| {
+        .map(|c| async move {
             let mut failcount = 0;
             while let Err(e) = c.start().await {
                 error!("Failed to start {} commander {}", c.key(), e);
@@ -131,7 +131,7 @@ async fn ctrl_c_handler(man: &Torimies) {
 
     let balls = man.command_manager.iter().collect::<Vec<_>>();
     let fs = stream::iter(balls.iter())
-        .map(async move |c| c.shutdown().await)
+        .map(|c| async move { c.shutdown().await })
         .collect::<Vec<_>>()
         .await;
     join_all(fs).await;

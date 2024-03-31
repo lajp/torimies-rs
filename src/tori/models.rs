@@ -3,174 +3,109 @@ use serde::Deserialize;
 
 use crate::vahti::VahtiItem;
 
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriAccount {
-    code: String,
-    label: String,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriCategory {
-    code: String,
-    label: String,
-    name: String,
-    path_en: String,
-    parent: String,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriImage {
-    base_url: String,
-    media_id: String,
-    path: String,
-    width: i64,
-    height: i64,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriListPrice {
-    #[serde(default)]
-    currency: String,
-    price_value: i64,
-    label: String,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriMcSettings {
-    use_form: bool,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriListType {
-    code: String,
-    label: String,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriUserAccount {
-    name: String,
-    created: String,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriUser {
-    account: ToriUserAccount,
-    uuid: String,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriPivo {
-    enabled: bool,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriListTime {
-    label: String,
-    value: i64,
-}
-
-#[derive(Deserialize, Debug, Clone, Default)]
-struct ToriLocation {
-    code: String,
-    key: String,
-    label: String,
-    #[serde(default)]
-    locations: Vec<ToriLocation>,
+#[derive(Deserialize, Debug, Clone)]
+pub struct ToriImage {
+    pub url: String,
+    pub path: String,
+    pub height: i64,
+    pub width: i64,
+    pub aspect_ratio: f32,
 }
 
 #[derive(Deserialize, Debug, Clone)]
-pub struct FullToriItem {
-    account: ToriAccount,
-    #[serde(default)]
-    account_ads: ToriAccount,
-    ad_id: String,
-    #[serde(default)]
-    body: String,
-    #[serde(default)]
-    category: ToriCategory,
-    #[serde(default)]
-    company_ad: bool,
-    //ad_details: Value, // Complicated and not used anyways
-    #[serde(default)]
-    full_details: bool,
-    #[serde(default)]
-    images: Vec<ToriImage>,
-    #[serde(default)]
-    list_id: String,
-    #[serde(default)]
-    list_id_code: String,
-    #[serde(default)]
-    list_price: ToriListPrice,
-    locations: Vec<ToriLocation>,
-    #[serde(default)]
-    mc_settings: ToriMcSettings,
-    #[serde(default)]
-    phone_hidden: bool,
-    #[serde(default)]
-    prices: Vec<ToriListPrice>,
-    #[serde(default)]
-    status: String,
-    subject: String,
-    thumbnail: Option<ToriImage>,
-    r#type: ToriListType,
-    user: ToriUser,
-    share_link: String,
-    #[serde(default)]
-    pivo: ToriPivo,
-    list_time: ToriListTime,
+pub struct ToriCoordinates {
+    pub lon: f32,
+    pub lat: f32,
 }
 
-impl From<FullToriItem> for VahtiItem {
-    fn from(t: FullToriItem) -> VahtiItem {
-        let img_url = match t.thumbnail {
-            Some(i) => {
-                format!(
-                    "https://images.tori.fi/api/v1/imagestori/images{}?rule=medium_660",
-                    &i.path[i.path.find('/').unwrap_or(i.path.len())..]
-                )
-            }
-            None => String::new(),
-        };
+#[derive(Deserialize, Debug, Clone)]
+pub struct ToriLabel {
+    pub id: String,
+    pub text: String,
+    pub r#type: String,
+}
 
-        let mut location_vec: Vec<String> = vec![];
-        let mut loc = &t.locations[0];
-        loop {
-            location_vec.push(loc.label.clone());
-            if loc.locations.is_empty() {
-                break;
-            }
-            loc = &loc.locations[0];
-        }
+#[derive(Deserialize, Debug, Clone)]
+pub struct ToriPrice {
+    pub amount: i64,
+    pub currency_code: String,
+    pub price_unit: String,
+}
 
-        let mut prevloc = String::new();
-        let mut location = String::new();
-        for loc_string in location_vec.iter().rev() {
-            if *loc_string == prevloc {
-                break;
-            }
-            prevloc = loc_string.to_string();
-            if location.is_empty() {
-                location += loc_string;
-            } else {
-                location += &format!(", {}", loc_string);
-            }
-        }
+/// An item returned by the search request
+#[derive(Deserialize, Debug, Clone)]
+pub struct ToriItem {
+    /// Type of the item for Torimies always "bap"
+    //pub r#type: String,
+    /// The id same as ad_id but as a String
+    pub id: String,
+    /// Main search key for Torimies always "SEARCH_ID_BAP_ALL"
+    pub main_search_key: String,
+    /// The title of the ad
+    pub heading: String,
+    /// The location of the ad
+    pub location: String,
+    /// The main image of the ad, not present if there is no image
+    #[serde(default)]
+    pub image: Option<ToriImage>,
+    /// No idea, seems to always contain "private"
+    pub flags: Vec<String>,
+    /// The timestamp of the image in milliseconds
+    pub timestamp: i64,
+    /// Coordinates of the image
+    pub coordinates: ToriCoordinates,
+    /// No idea, some ad type
+    pub ad_type: u32,
+    /// Labels of the ad, seems to contain
+    /// { "id": "private, "text": "Yksityinen", "type": "SECONDARY" }
+    pub labels: Vec<ToriLabel>,
+    /// The web-url for the ad
+    pub canonical_url: String,
+    /// The price not present if no price
+    pub price: Option<ToriPrice>,
+    /// Distance to the ad?
+    pub distance: f32,
+    /// Trade type, e.g. "Myydään" or "Ostetaan"
+    pub trade_type: String,
+    /// Image urls for the ad, empty if no images
+    pub image_urls: Vec<String>,
+    /// Same as id but not a String
+    pub ad_id: i64,
+}
 
+/// The search response JSON contains
+/// the necessary items in the "docs" field
+/// and then thousands of lines of categories
+/// each stating how many of the items
+/// belong to that category
+#[derive(Deserialize, Debug, Clone)]
+pub struct ToriSearch {
+    /// An array of items
+    pub docs: Vec<ToriItem>,
+}
+
+impl From<ToriItem> for VahtiItem {
+    fn from(t: ToriItem) -> VahtiItem {
         VahtiItem {
-            vahti_url: None,
-            site_id: super::ID,
             deliver_to: None,
             delivery_method: None,
-            title: t.subject,
-            url: t.share_link,
-            img_url,
-            published: t.list_time.value,
-            price: t.list_price.price_value,
-            seller_name: t.user.account.name,
-            seller_id: t.account.code.parse().unwrap(),
-            location,
-            ad_type: t.r#type.label,
-            ad_id: t.ad_id[t.ad_id.rfind('/').unwrap() + 1..].parse().unwrap(),
+            site_id: super::ID,
+            title: t.heading,
+            vahti_url: None,
+            url: t.canonical_url,
+            img_url: t.image.map(|i| i.url).unwrap_or_default(),
+            published: t.timestamp / 1000,
+            price: t.price.map(|p| p.amount).unwrap_or_default(),
+            seller_name: t
+                .labels
+                .iter()
+                .find(|l| l.r#type == "SECONDARY")
+                .map(|l| l.text.clone())
+                .unwrap_or(String::from("Tuntematon")),
+            seller_id: 0,
+            location: t.location,
+            ad_type: t.trade_type,
+            ad_id: t.ad_id,
         }
     }
 }

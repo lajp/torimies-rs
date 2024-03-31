@@ -5,13 +5,12 @@ use regex::Regex;
 
 use crate::database::Database;
 use crate::error::Error;
-use crate::itemhistory::ItemHistoryStorage;
 use crate::models::DbVahti;
 use crate::tori::api::*;
 use crate::tori::parse::*;
 
 pub static TORI_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^https://(m\.|www\.)?tori\.fi/.*\?.*$").unwrap());
+    LazyLock::new(|| Regex::new(r"^https://(beta\.)?tori\.fi/.*\?.*$").unwrap());
 
 use crate::vahti::{Vahti, VahtiItem};
 
@@ -20,6 +19,7 @@ pub struct ToriVahti {
     pub id: i32,
     pub delivery_method: i32,
     pub url: String,
+    pub key: String,
     pub user_id: u64,
     pub last_updated: i64,
     pub site_id: i32,
@@ -27,47 +27,29 @@ pub struct ToriVahti {
 
 #[async_trait]
 impl Vahti for ToriVahti {
-    async fn update(
-        &mut self,
-        db: &Database,
-        ihs: ItemHistoryStorage,
-    ) -> Result<Vec<VahtiItem>, Error> {
+    async fn update(&mut self, db: &Database) -> Result<Vec<VahtiItem>, Error> {
         debug!("Updating {}", self.url);
-        let ihref = ihs
-            .get(&(self.user_id, self.delivery_method))
-            .expect("bug: impossible");
-
-        let res = reqwest::get(vahti_to_api(&self.url))
+        let client = reqwest::Client::new();
+        let res = client
+            .get(vahti_to_api(&self.url))
+            .header("FINN-GW-SERVICE", "Search-Quest")
+            .header("FINN-GW-KEY", &self.key)
+            .send()
             .await?
             .text()
             .await?
             .to_string();
 
-        let mut ih = ihref.lock().unwrap().clone();
-        let ret = api_parse_after(&res, self.last_updated)?
-            .iter()
-            .filter_map(|i| {
-                if !ih.contains(i.ad_id, i.site_id) {
-                    ih.add_item(i.ad_id, i.site_id, chrono::Local::now().timestamp());
-
-                    // FIXME: Somewhat sketchy
-                    let mut newi = i.clone();
-                    newi.vahti_url = Some(self.url.clone());
-                    newi.deliver_to = Some(self.user_id);
-                    newi.delivery_method = Some(self.delivery_method);
-
-                    Some(newi)
-                } else {
-                    None
-                }
+        let ret = api_parse_after(&res, self.last_updated)
+            .unwrap()
+            .into_iter()
+            .map(|mut i| {
+                i.vahti_url = Some(self.url.clone());
+                i.deliver_to = Some(self.user_id);
+                i.delivery_method = Some(self.delivery_method);
+                i
             })
             .collect::<Vec<_>>();
-
-        {
-            let mut locked = ihref.lock().unwrap();
-            ih.extend(&locked);
-            *locked = ih;
-        }
 
         if ret.is_empty() {
             return Ok(vec![]);
@@ -93,6 +75,7 @@ impl Vahti for ToriVahti {
         Ok(Self {
             id: v.id,
             url: v.url,
+            key: v.key.expect("bug: no tori api key"),
             user_id: v.user_id as u64,
             last_updated: v.last_updated,
             site_id: super::ID,
@@ -105,6 +88,7 @@ impl Vahti for ToriVahti {
             delivery_method: self.delivery_method,
             id: self.id,
             url: self.url.clone(),
+            key: Some(self.key.clone()),
             user_id: self.user_id as i64,
             last_updated: self.last_updated,
             site_id: self.site_id,

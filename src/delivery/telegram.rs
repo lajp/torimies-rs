@@ -3,7 +3,7 @@ use chrono::{Local, TimeZone};
 use futures::stream::{self, StreamExt};
 use teloxide::adaptors::throttle::Limits;
 use teloxide::prelude::*;
-use teloxide::types::{ChatId, InputFile, ParseMode};
+use teloxide::types::{InputFile, ParseMode};
 
 use crate::delivery::Delivery;
 use crate::error::Error;
@@ -90,27 +90,26 @@ impl Delivery for Telegram {
 
         let recipient = ChatId(fst.deliver_to.unwrap() as i64);
 
-        stream::iter(items.iter().cloned())
-            .map(async move |i| {
-                let file = if i.img_url.is_empty() {
-                    InputFile::file("./media/no_image.jpg")
-                } else {
-                    InputFile::url(url::Url::parse(&i.img_url).unwrap())
-                };
+        stream::iter(items.into_iter().map(|i| async move {
+            let file = if i.img_url.is_empty() {
+                InputFile::file("./media/no_image.jpg")
+            } else {
+                InputFile::url(url::Url::parse(&i.img_url).unwrap())
+            };
 
-                self.bot
-                    .clone()
-                    .throttle(Limits::default())
-                    .send_photo(recipient, file)
-                    .caption(i.clone().format_telegram())
-                    .parse_mode(ParseMode::Html)
-                    .await
-                    // FIXME: Perhaps don't ignore an error here
-                    .ok()
-            })
-            .buffer_unordered(*crate::FUTURES_MAX_BUFFER_SIZE)
-            .collect::<Vec<_>>()
-            .await;
+            self.bot
+                .clone()
+                .throttle(Limits::default())
+                .send_photo(recipient, file)
+                .caption(i.format_telegram())
+                .parse_mode(ParseMode::Html)
+                .await
+                // FIXME: Perhaps don't ignore an error here
+                .ok()
+        }))
+        .buffer_unordered(*crate::FUTURES_MAX_BUFFER_SIZE)
+        .collect::<Vec<_>>()
+        .await;
 
         Ok(())
     }
