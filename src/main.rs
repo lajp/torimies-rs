@@ -25,7 +25,7 @@ extern crate tracing;
 #[macro_use]
 extern crate diesel;
 
-use std::sync::{Arc, LazyLock, RwLock};
+use std::sync::{Arc, LazyLock};
 
 use command::{Command, Manager};
 use dashmap::DashMap;
@@ -33,6 +33,8 @@ use database::Database;
 use delivery::Delivery;
 use futures::future::join_all;
 use futures::stream::{self, StreamExt};
+use tokio::select;
+use tokio_util::sync::CancellationToken;
 
 static UPDATE_INTERVAL: LazyLock<u64> = LazyLock::new(|| {
     std::env::var("UPDATE_INTERVAL")
@@ -48,12 +50,6 @@ static FUTURES_MAX_BUFFER_SIZE: LazyLock<usize> = LazyLock::new(|| {
         .expect("Invalid FUTURES_MAX_BUFFER_SIZE")
 });
 
-#[derive(PartialEq, Clone)]
-enum State {
-    Running,
-    Shutdown,
-}
-
 #[derive(Clone)]
 struct Torimies {
     pub delivery: Arc<DashMap<i32, Box<dyn Delivery + Send + Sync>>>,
@@ -61,35 +57,18 @@ struct Torimies {
     pub command_manager: Arc<DashMap<String, Box<dyn Manager + Send + Sync>>>,
     pub database: Database,
     pub itemhistorystorage: crate::itemhistory::ItemHistoryStorage,
-    pub state: Arc<RwLock<State>>,
 }
 
 // False positive
 #[allow(clippy::needless_pass_by_ref_mut)]
-async fn update_loop(man: &mut Torimies) {
+async fn update_loop(man: &mut Torimies, shutdown: CancellationToken) {
     let mut interval = tokio::time::interval(std::time::Duration::from_secs(*UPDATE_INTERVAL));
     loop {
-        // Exiting after recieved signal depends on
-        // 1) the ongoing update
-        // 2) the following UPDATE_INTERVAL-tick
-        interval.tick().await;
-        let mut failcount = 0;
-
-        let state = if let Ok(state) = man.state.read() {
-            state.clone()
-        } else {
-            error!("Failed to read Torimies.state");
-            failcount += 1;
-            if failcount > 2 {
-                error!("Assuming State::Shutdown");
-                State::Shutdown
-            } else {
-                State::Running
+        select! {
+            _ = interval.tick() => {},
+            _ = shutdown.cancelled() => {
+                break;
             }
-        };
-
-        if state == State::Shutdown {
-            break;
         }
 
         if let Err(e) = man.update_all_vahtis().await {
@@ -121,23 +100,6 @@ async fn command_loop(man: &Torimies) {
     info!("Command loop exited")
 }
 
-async fn ctrl_c_handler(man: &Torimies) {
-    tokio::signal::ctrl_c()
-        .await
-        .expect("Failed to register ctrl+c handler");
-    info!("Recieved ctrl+c");
-    info!("Setting State to State::Shutdown");
-    *man.state.write().unwrap() = State::Shutdown;
-
-    let balls = man.command_manager.iter().collect::<Vec<_>>();
-    let fs = stream::iter(balls.iter())
-        .map(|c| async move { c.shutdown().await })
-        .collect::<Vec<_>>()
-        .await;
-    join_all(fs).await;
-    info!("Ctrl+c handler exited");
-}
-
 impl Torimies {
     pub fn new(db: Database) -> Self {
         Self {
@@ -146,7 +108,6 @@ impl Torimies {
             command_manager: Arc::new(DashMap::new()),
             database: db,
             itemhistorystorage: Arc::new(DashMap::new()),
-            state: Arc::new(RwLock::new(State::Running)),
         }
     }
 
@@ -214,9 +175,24 @@ async fn main() {
     let the_man2 = the_man.clone();
     let the_man3 = the_man.clone();
 
-    let update = tokio::task::spawn(async move { update_loop(&mut the_man).await });
-    let command = tokio::task::spawn(async move { command_loop(&the_man2).await });
-    let ctrl_c = tokio::task::spawn(async move { ctrl_c_handler(&the_man3).await });
+    let shutdown = CancellationToken::new();
+    let shutdown_clone = shutdown.clone();
 
-    let _ = futures::join!(update, command, ctrl_c);
+    let update = tokio::task::spawn(async move { update_loop(&mut the_man, shutdown_clone).await });
+    let command = tokio::task::spawn(async move { command_loop(&the_man2).await });
+
+    tokio::signal::ctrl_c()
+        .await
+        .expect("Failed to register ctrl+c handler");
+
+    shutdown.cancel();
+    info!("Received ctrl+c");
+    let balls = the_man3.command_manager.iter().collect::<Vec<_>>();
+    stream::iter(balls.iter().map(|c| async move { c.shutdown().await }))
+        .buffer_unordered(5)
+        .collect::<Vec<_>>()
+        .await;
+
+    let _ = futures::join!(update, command);
+    info!("All tasks exited, quitting!");
 }
