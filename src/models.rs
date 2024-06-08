@@ -12,7 +12,7 @@ pub struct DbVahti {
 use crate::schema::Vahdit;
 
 #[derive(Insertable)]
-#[table_name = "Vahdit"]
+#[diesel(table_name = Vahdit)]
 pub struct NewVahti {
     pub url: String,
     pub user_id: i64,
@@ -33,7 +33,7 @@ pub struct Blacklist {
 use crate::schema::Blacklists;
 
 #[derive(Insertable)]
-#[table_name = "Blacklists"]
+#[diesel(table_name = Blacklists)]
 pub struct NewBlacklist {
     pub user_id: i64,
     pub seller_id: i32,

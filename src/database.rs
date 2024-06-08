@@ -85,7 +85,7 @@ impl Database {
         };
         Ok(diesel::insert_into(Vahdit::table)
             .values(&new_vahti)
-            .execute(&self.database.get()?)?)
+            .execute(&mut self.database.get()?)?)
     }
 
     pub async fn remove_vahti_entry(
@@ -103,7 +103,7 @@ impl Database {
                     .and(delivery_method.eq(delivery)),
             ),
         )
-        .execute(&self.database.get()?)?)
+        .execute(&mut self.database.get()?)?)
     }
 
     pub async fn fetch_vahti_entries_by_url(&self, arg_url: &str) -> Result<Vec<DbVahti>, Error> {
@@ -111,7 +111,7 @@ impl Database {
         use crate::schema::Vahdit::dsl::*;
         Ok(Vahdit
             .filter(url.eq(arg_url))
-            .load::<DbVahti>(&self.database.get()?)?)
+            .load::<DbVahti>(&mut self.database.get()?)?)
     }
 
     pub async fn fetch_vahti_entries_by_user_id(&self, userid: i64) -> Result<Vec<DbVahti>, Error> {
@@ -119,7 +119,7 @@ impl Database {
         use crate::schema::Vahdit::dsl::*;
         Ok(Vahdit
             .filter(user_id.eq(userid))
-            .load::<DbVahti>(&self.database.get()?)?)
+            .load::<DbVahti>(&mut self.database.get()?)?)
     }
 
     pub async fn fetch_vahti(&self, arg_url: &str, userid: i64) -> Result<DbVahti, Error> {
@@ -127,13 +127,13 @@ impl Database {
         use crate::schema::Vahdit::dsl::*;
         Ok(Vahdit
             .filter(user_id.eq(userid).and(url.eq(arg_url)))
-            .first::<DbVahti>(&self.database.get()?)?)
+            .first::<DbVahti>(&mut self.database.get()?)?)
     }
 
     pub async fn fetch_all_vahtis(&self) -> Result<Vec<DbVahti>, Error> {
         info!("Fetching all Vahtis...");
         use crate::schema::Vahdit::dsl::*;
-        Ok(Vahdit.load::<DbVahti>(&self.database.get()?)?)
+        Ok(Vahdit.load::<DbVahti>(&mut self.database.get()?)?)
     }
 
     pub async fn fetch_all_vahtis_group(&self) -> Result<BTreeMap<String, Vec<DbVahti>>, Error> {
@@ -167,7 +167,7 @@ impl Database {
             ),
         )
         .set(last_updated.eq(time))
-        .execute(&self.database.get()?)?)
+        .execute(&mut self.database.get()?)?)
     }
 
     pub async fn fetch_user_blacklist(&self, userid: i64) -> Result<Vec<(i32, i32)>, Error> {
@@ -176,7 +176,7 @@ impl Database {
         Ok(Blacklists
             .filter(user_id.eq(userid))
             .select((seller_id, site_id))
-            .load::<(i32, i32)>(&self.database.get()?)?)
+            .load::<(i32, i32)>(&mut self.database.get()?)?)
     }
 
     pub async fn add_seller_to_blacklist(
@@ -197,7 +197,7 @@ impl Database {
         };
         Ok(diesel::insert_into(Blacklists::table)
             .values(new_entry)
-            .execute(&self.database.get()?)?)
+            .execute(&mut self.database.get()?)?)
     }
 
     pub async fn remove_seller_from_blacklist(
@@ -219,6 +219,6 @@ impl Database {
                     .and(site_id.eq(siteid)),
             ),
         )
-        .execute(&self.database.get()?)?)
+        .execute(&mut self.database.get()?)?)
     }
 }

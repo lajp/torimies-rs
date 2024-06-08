@@ -13,6 +13,9 @@ mod huutonet;
 
 mod error;
 pub mod models;
+
+#[rustfmt::skip]
+#[allow(non_snake_case)]
 pub mod schema;
 
 pub mod command;
