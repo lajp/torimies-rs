@@ -10,7 +10,7 @@ use crate::tori::api::*;
 use crate::tori::parse::*;
 
 pub static TORI_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^https://(beta\.)?tori\.fi/.*\?.*$").unwrap());
+    LazyLock::new(|| Regex::new(r"^https://(beta\.|www\.)?tori\.fi/.*\?.*$").unwrap());
 
 use crate::vahti::{Vahti, VahtiItem};
 
