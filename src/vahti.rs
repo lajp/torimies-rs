@@ -14,7 +14,7 @@ use crate::itemhistory::ItemHistory;
 use crate::models::DbVahti;
 #[cfg(feature = "tori")]
 use crate::tori::vahti::ToriVahti;
-use crate::{tori, Torimies};
+use crate::Torimies;
 
 static SITES: LazyLock<Vec<(&LazyLock<Regex>, i32)>> = LazyLock::new(|| {
     vec![
@@ -76,10 +76,19 @@ pub async fn new_vahti(
         return Err(Error::VahtiExists);
     }
 
-    let key = if site_id == tori::ID {
-        Some(tori::api::api_key(url))
-    } else {
-        None
+    let key = {
+        #[cfg(not(feature = "tori"))]
+        {
+            None
+        }
+        #[cfg(feature = "tori")]
+        {
+            if site_id == crate::tori::ID {
+                Some(crate::tori::api::api_key(url))
+            } else {
+                None
+            }
+        }
     };
 
     match db
