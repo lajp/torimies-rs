@@ -132,7 +132,10 @@ impl Database {
     pub async fn fetch_all_vahtis(&self) -> Result<Vec<DbVahti>, Error> {
         info!("Fetching all Vahtis...");
         use crate::schema::Vahdit::dsl::*;
-        Ok(Vahdit.load::<DbVahti>(&self.database.get()?)?)
+        Ok(Vahdit
+            .order_by(user_id)
+            .then_order_by(delivery_method)
+            .load::<DbVahti>(&self.database.get()?)?)
     }
 
     pub async fn fetch_all_vahtis_group(&self) -> Result<BTreeMap<String, Vec<DbVahti>>, Error> {
