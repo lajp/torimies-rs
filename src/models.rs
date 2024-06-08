@@ -21,21 +21,3 @@ pub struct NewVahti {
     pub delivery_method: i32,
     pub key: Option<String>,
 }
-
-#[derive(Queryable, Clone, Debug)]
-pub struct Blacklist {
-    pub id: i64,
-    pub user_id: i64,
-    pub seller_id: i32,
-    pub site_id: i32,
-}
-
-use crate::schema::Blacklists;
-
-#[derive(Insertable)]
-#[diesel(table_name = Blacklists)]
-pub struct NewBlacklist {
-    pub user_id: i64,
-    pub seller_id: i32,
-    pub site_id: i32,
-}

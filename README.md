@@ -102,7 +102,6 @@ The bot has two main commands implemented as application commands (slash-command
 and those are:
 * `/vahti url` Adds a new vahti with the specified url
 * `/poistavahti url` Removes the vahti with the specified url
-* `/poistaesto` Prompts you with a drop-down menu to select which seller you wish to unblock
 
 
 One additional owner-restricted commmand is also included (this is not a slash-command):

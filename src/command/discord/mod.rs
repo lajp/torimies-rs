@@ -1,6 +1,5 @@
 mod extensions;
 mod interaction;
-mod poistaesto;
 mod poistavahti;
 mod vahti;
 
@@ -29,11 +28,7 @@ impl EventHandler for Handler {
         info!("Connected as {}", ready.user.name);
         let _ = serenity::model::application::Command::set_global_commands(
             &ctx.http,
-            vec![
-                vahti::register(),
-                poistavahti::register(),
-                poistaesto::register(),
-            ],
+            vec![vahti::register(), poistavahti::register()],
         )
         .await;
     }

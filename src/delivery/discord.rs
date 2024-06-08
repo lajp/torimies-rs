@@ -51,14 +51,7 @@ impl VahtiItem {
                     .color(color)
                     .description(format!("[{}]({})", self.title, self.url))
                     .field("Hinta", format!("{} €", self.price), true)
-                    .field(
-                        "Myyjä",
-                        format!(
-                            "[{}](https://www.tori.fi/li?&aid={})",
-                            self.seller_name, self.seller_id
-                        ),
-                        true,
-                    )
+                    .field("Myyjä", self.seller_name, true)
                     .field("Sijainti", &self.location, true)
                     .field(
                         "Ilmoitus Jätetty",
@@ -149,14 +142,9 @@ impl Delivery for Discord {
                 for item in items {
                     message = message.add_embed(item.clone().embed());
                 }
-                let buttons = vec![
-                    CreateButton::new("block_seller")
-                        .label("Estä myyjä")
-                        .style(ButtonStyle::Danger),
-                    CreateButton::new("remove_vahti")
-                        .label("Poista vahti")
-                        .style(ButtonStyle::Danger),
-                ];
+                let buttons = vec![CreateButton::new("remove_vahti")
+                    .label("Poista vahti")
+                    .style(ButtonStyle::Danger)];
                 let row = CreateActionRow::Buttons(buttons);
                 if cfg!(feature = "discord-command") {
                     message = message.components(vec![row]);

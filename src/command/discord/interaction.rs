@@ -33,7 +33,6 @@ pub async fn handle_interaction(ctx: Context, interaction: Interaction) {
             let content = match command.data.name.as_str() {
                 "vahti" => super::vahti::run(&ctx, &command).await,
                 "poistavahti" => super::poistavahti::run(&ctx, &command).await,
-                "poistaesto" => super::poistaesto::run(&ctx, &command).await,
                 _ => unreachable!(),
             };
 
@@ -73,79 +72,6 @@ pub async fn handle_interaction(ctx: Context, interaction: Interaction) {
                         )
                     .await.unwrap();
                 }
-            } else if button.data.custom_id == "block_seller" {
-                button.defer_ephemeral(&ctx.http).await.unwrap();
-                let message = button.message.clone();
-
-                let urls: Vec<_> = message
-                    .embeds
-                    .iter()
-                    .filter_map(|e| e.footer.as_ref().map(|f| f.text.clone()))
-                    .collect();
-
-                assert!(!urls.is_empty(), "Cannot determine search url");
-
-                let sellers = message
-                    .embeds
-                    .iter()
-                    .map(|e| e.fields.iter().find(|f| f.name == "Myyjä"))
-                    .filter_map(|f| f.map(|ff| ff.value.clone()))
-                    .filter_map(|s| match s {
-                        #[cfg(feature = "tori")]
-                        _ if s.contains("https://www.tori.fi/li?&aid=") => Some((
-                            s[1..s.find(']').unwrap()].to_string(),
-                            format!(
-                                "{},{}",
-                                &s[s.rfind('=').unwrap() + 1..s.find(')').unwrap()],
-                                crate::tori::ID
-                            ),
-                        )),
-                        #[cfg(feature = "huutonet")]
-                        _ if s.contains("https://www.huuto.net/kayttaja/") => Some((
-                            s[1..s.find(']').unwrap()].to_string(),
-                            format!(
-                                "{},{}",
-                                &s[s.rfind('/').unwrap() + 1..s.find(')').unwrap()],
-                                crate::huutonet::ID
-                            ),
-                        )),
-                        _ => None,
-                    })
-                    .unique()
-                    .collect::<Vec<_>>();
-
-                button
-                    .edit_response(
-                        &ctx.http,
-                        EditInteractionResponse::new()
-                            .content("Choose the seller to block")
-                            .components(menu_from_options("block_seller_menu", sellers)),
-                    )
-                    .await
-                    .unwrap();
-            } else if button.data.custom_id == "unblock_seller" {
-                button.defer_ephemeral(&ctx.http).await.unwrap();
-                let db = ctx.get_db().await.unwrap();
-                let userid = u64::from(button.user.id);
-                let ids: Vec<String> = match button.data.kind.clone() {
-                    ComponentInteractionDataKind::StringSelect { values } => {
-                        values[0].split(',').map(|s| s.to_string()).collect()
-                    }
-                    _ => unreachable!(),
-                };
-                let sellerid = ids[0].parse::<i32>().unwrap();
-                let siteid = ids[1].parse::<i32>().unwrap();
-
-                db.remove_seller_from_blacklist(userid.try_into().unwrap(), sellerid, siteid)
-                    .await
-                    .unwrap();
-                button
-                    .edit_response(
-                        &ctx.http,
-                        EditInteractionResponse::new().content("Esto poistettu!"),
-                    )
-                    .await
-                    .unwrap();
             } else if button.data.custom_id == "remove_vahti_menu" {
                 button.defer_ephemeral(&ctx.http).await.unwrap();
                 let userid = u64::from(button.user.id);
@@ -190,29 +116,6 @@ pub async fn handle_interaction(ctx: Context, interaction: Interaction) {
                     .await
                     .unwrap();
                 return;
-            } else if button.data.custom_id == "block_seller_menu" {
-                button.defer_ephemeral(&ctx.http).await.unwrap();
-                let db = ctx.get_db().await.unwrap();
-                let userid = u64::from(button.user.id);
-                let ids: Vec<String> = match button.data.kind.clone() {
-                    ComponentInteractionDataKind::StringSelect { values } => {
-                        values[0].split(',').map(|s| s.to_string()).collect()
-                    }
-                    _ => unreachable!(),
-                };
-                let sellerid = ids[0].parse::<i32>().unwrap();
-                let siteid = ids[1].parse::<i32>().unwrap();
-
-                db.add_seller_to_blacklist(userid as i64, sellerid, siteid)
-                    .await
-                    .unwrap();
-                button
-                    .edit_response(
-                        &ctx.http,
-                        EditInteractionResponse::new().content("Myyjä estetty!"),
-                    )
-                    .await
-                    .unwrap();
             }
         }
         _ => {}

@@ -197,28 +197,11 @@ impl Torimies {
             })
             .collect();
 
-        // False positive, because we actually want to .await the future elsewhere
-        #[allow(clippy::async_yields_async)]
         stream::iter(
             groups
-                .iter()
-                .map(|v| (v, db.clone()))
-                .map(async move |(v, db): (&Vec<VahtiItem>, Database)| {
-                    let mut v = v.clone();
-
-                    if let Some(fst) = v.first() {
-                        // NOTE: If db fails, blacklisted sellers are not filtered out
-                        if let Ok(bl) = db
-                            .fetch_user_blacklist(fst.deliver_to.expect("bug: impossible") as i64)
-                            .await
-                        {
-                            v.retain(|i| !bl.contains(&(i.seller_id, i.site_id)));
-                        }
-                    }
-                    v
-                })
+                .into_iter()
                 .map(|v| (v, dm.clone()))
-                .map(|(v, dm)| async move { perform_delivery(dm.clone(), v.await).await })
+                .map(|(v, dm)| async move { perform_delivery(dm.clone(), v).await })
                 .collect::<Vec<_>>(),
         )
         .buffer_unordered(*crate::FUTURES_MAX_BUFFER_SIZE)

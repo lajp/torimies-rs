@@ -33,9 +33,7 @@ impl VahtiItem {
     fn format_telegram(self) -> String {
         let sellerurl = match self.site_id {
             #[cfg(feature = "tori")]
-            crate::tori::ID => {
-                format!("https://www.tori.fi/li?&aid={}", self.seller_id)
-            }
+            crate::tori::ID => String::new(),
             #[cfg(feature = "huutonet")]
             crate::huutonet::ID => {
                 format!("https://www.huuto.net/kayttaja/{}", self.seller_id)
